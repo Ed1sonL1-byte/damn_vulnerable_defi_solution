@@ -1,56 +1,69 @@
-# Damn Vulnerable DeFi
+# Damn Vulnerable DeFi - Solutions
 
-Damn Vulnerable DeFi is _the_ smart contract security playground for developers, security researchers and educators.
+This repository contains my solutions to the [Damn Vulnerable DeFi](https://www.damnvulnerabledefi.xyz/) challenges.
 
-Perhaps the most sophisticated vulnerable set of Solidity smart contracts ever witnessed, it features flashloans, price oracles, governance, NFTs, DEXs, lending pools, smart contract wallets, timelocks, vaults, meta-transactions, token distributions, upgradeability and more.
+## About Damn Vulnerable DeFi
 
-Use Damn Vulnerable DeFi to:
+Damn Vulnerable DeFi is a smart contract security playground for developers, security researchers and educators. It features a collection of vulnerable Solidity smart contracts covering flashloans, price oracles, governance, NFTs, DEXs, lending pools, smart contract wallets, timelocks, vaults, meta-transactions, token distributions, upgradeability and more.
 
-- Sharpen your auditing and bug-hunting skills.
-- Learn how to detect, test and fix flaws in realistic scenarios to become a security-minded developer.
-- Benchmark smart contract security tooling.
-- Create educational content on smart contract security with articles, tutorials, talks, courses, workshops, trainings, CTFs, etc. 
+## Setup
 
-## Install
+1. Clone this repository
+2. Install [Foundry](https://book.getfoundry.sh/getting-started/installation)
+3. Rename `.env.sample` to `.env` and add a valid RPC URL (needed for mainnet fork challenges)
+4. Run `forge build` to compile contracts
+5. Run `forge test` to verify all solutions
 
-1. Clone the repository.
-2. Checkout the latest release (for example, `git checkout v4.1.0`)
-3. Rename the `.env.sample` file to `.env` and add a valid RPC URL. This is only needed for the challenges that fork mainnet state.
-4. Either install [Foundry](https://book.getfoundry.sh/getting-started/installation), or use the [provided devcontainer](./.devcontainer/) (In VSCode, open the repository as a devcontainer with the command "Devcontainer: Open Folder in Container...")
-5. Run `forge build` to initialize the project.
+## Solutions
 
-## Usage
+### ✅ Challenge #1: Unstoppable
 
-Each challenge is made up of:
+**Vulnerability**: ERC4626 accounting mismatch
 
-- A prompt located in `src/<challenge-name>/README.md`.
-- A set of contracts located in `src/<challenge-name>/`.
-- A [Foundry test](https://book.getfoundry.sh/forge/tests) located in `test/<challenge-name>/<ChallengeName>.t.sol`.
+**Solution**: [test/unstoppable/Unstoppable.t.sol](test/unstoppable/Unstoppable.t.sol#L93-L98)
 
-To solve a challenge:
+**Exploit**: Directly transfer tokens to the vault bypassing the `deposit()` function. This breaks the invariant that `convertToShares(totalSupply) == totalAssets()`, causing all flash loan attempts to revert with `InvalidBalance()`.
 
-1. Read the challenge's prompt.
-2. Uncover the flaw(s) in the challenge's smart contracts.
-3. Code your solution in the corresponding test file.
-4. Try your solution with `forge test --mp test/<challenge-name>/<ChallengeName>.t.sol`.
+**Key Takeaway**: Never assume tokens can only enter a contract through your designated functions. ERC20 `transfer()` can send tokens directly to any address, potentially breaking internal accounting logic.
 
-> In challenges that restrict the number of transactions, you might need to run the test with the `--isolate` flag.
+---
 
-If the test passes, you've solved the challenge!
+## Running Solutions
 
-Challenges may have more than one possible solution.
+Run all solutions:
+```bash
+forge test
+```
 
-### Rules
+Run a specific challenge:
+```bash
+forge test --match-test test_unstoppable -vvv
+```
 
-- You must always use the `player` account.
-- You must not modify the challenges' initial nor final conditions.
-- You can code and deploy your own smart contracts.
-- You can use Foundry's cheatcodes to advance time when necessary.
-- You can import external libraries that aren't installed, although it shouldn't be necessary.
+## Progress
 
-## Troubleshooting
+- [x] #1 - Unstoppable
+- [ ] #2 - Naive receiver
+- [ ] #3 - Truster
+- [ ] #4 - Side entrance
+- [ ] #5 - The rewarder
+- [ ] #6 - Selfie
+- [ ] #7 - Compromised
+- [ ] #8 - Puppet
+- [ ] #9 - Puppet V2
+- [ ] #10 - Free rider
+- [ ] #11 - Backdoor
+- [ ] #12 - Climber
+- [ ] #13 - Wallet mining
+- [ ] #14 - Puppet V3
+- [ ] #15 - ABI smuggling
+- [ ] #16 - Shards
 
-You can ask the community for help in [the discussions section](https://github.com/theredguild/damn-vulnerable-defi/discussions).
+## Resources
+
+- [Official Challenges](https://www.damnvulnerabledefi.xyz/)
+- [Original Repository](https://github.com/theredguild/damn-vulnerable-defi)
+- [Foundry Book](https://book.getfoundry.sh/)
 
 ## Disclaimer
 

