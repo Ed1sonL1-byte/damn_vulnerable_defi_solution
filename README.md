@@ -28,6 +28,33 @@ Damn Vulnerable DeFi is a smart contract security playground for developers, sec
 
 ---
 
+### ✅ Challenge #2: Naive Receiver
+
+**Vulnerability**: Multicall + Meta-transaction + Unauthorized flash loan
+
+**Solution**: [test/naive-receiver/NaiveReceiver.t.sol](test/naive-receiver/NaiveReceiver.t.sol#L79-L120)
+
+**Exploit**: This challenge combines three vulnerabilities:
+1. **Unauthorized flash loans**: Anyone can force `FlashLoanReceiver` to take flash loans and pay fees by calling `pool.flashLoan(receiver, ...)`. The receiver doesn't verify the `initiator`, only checks if caller is the pool.
+2. **Multicall with delegatecall**: The pool's `multicall()` uses `delegatecall`, which preserves `msg.sender` but changes `msg.data` to each individual call's data.
+3. **Meta-transaction _msgSender()**: The `_msgSender()` function extracts the "real sender" from the last 20 bytes of `msg.data` when called via `trustedForwarder`.
+
+By crafting a `withdraw()` call with the `deployer` address appended to the calldata and executing it through `BasicForwarder` → `multicall` → `delegatecall`, we can drain funds from `deposits[deployer]` without authorization.
+
+**Attack Flow**:
+1. Call 10 flash loans with 0 amount to drain receiver's 10 WETH in fees
+2. Append `deployer` address to a `withdraw()` call's calldata
+3. Execute via forwarder's meta-transaction to trigger multicall
+4. In the delegatecall context, `_msgSender()` extracts `deployer` from calldata
+5. Successfully withdraw all 1010 WETH to recovery address
+
+**Key Takeaway**:
+- Flash loan receivers must verify both the pool AND the initiator
+- Combining `delegatecall` + meta-transactions that extract identity from `msg.data` is dangerous
+- `delegatecall` preserves `msg.sender` but changes `msg.data`, breaking assumptions about calldata structure
+
+---
+
 ## Running Solutions
 
 Run all solutions:
@@ -38,12 +65,13 @@ forge test
 Run a specific challenge:
 ```bash
 forge test --match-test test_unstoppable -vvv
+forge test --match-test test_naiveReceiver -vvv
 ```
 
 ## Progress
 
 - [x] #1 - Unstoppable
-- [ ] #2 - Naive receiver
+- [x] #2 - Naive receiver
 - [ ] #3 - Truster
 - [ ] #4 - Side entrance
 - [ ] #5 - The rewarder

