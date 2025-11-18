@@ -127,6 +127,18 @@ By crafting a `withdraw()` call with the `deployer` address appended to the call
 
 ---
 
+### ✅ Challenge #9: Puppet V2
+
+**Vulnerability**: Oracle manipulation via Uniswap V2 price manipulation
+
+**Solution**: [test/puppet-v2/PuppetV2.t.sol](test/puppet-v2/PuppetV2.t.sol)
+
+**Exploit**: Similar to Puppet V1 but using Uniswap V2. The lending pool uses Uniswap V2 spot price as an oracle. We swap all 10,000 DVT tokens for WETH in the pool (100 DVT / 10 WETH), crashing the DVT price. Then we convert our ETH to WETH and borrow all 1,000,000 DVT from the lending pool with the drastically reduced collateral requirement.
+
+**Key Takeaway**: Same lesson as Puppet V1 - spot prices from any DEX version are manipulable. Always use time-weighted prices or multiple oracle sources.
+
+---
+
 ## Running Solutions
 
 Run all solutions:
@@ -144,6 +156,7 @@ forge test --match-test test_theRewarder -vvv
 forge test --match-test test_selfie -vvv
 forge test --match-test test_compromised -vvv
 forge test --match-test test_puppet -vvv
+forge test --match-test test_puppetV2 -vvv
 ```
 
 ## Progress
@@ -156,7 +169,7 @@ forge test --match-test test_puppet -vvv
 - [x] #6 - Selfie
 - [x] #7 - Compromised
 - [x] #8 - Puppet
-- [ ] #9 - Puppet V2
+- [x] #9 - Puppet V2
 - [ ] #10 - Free rider
 - [ ] #11 - Backdoor
 - [ ] #12 - Climber
