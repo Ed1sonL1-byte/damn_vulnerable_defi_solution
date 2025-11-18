@@ -103,6 +103,30 @@ By crafting a `withdraw()` call with the `deployer` address appended to the call
 
 ---
 
+### ✅ Challenge #7: Compromised
+
+**Vulnerability**: Leaked oracle private keys
+
+**Solution**: [test/compromised/Compromised.t.sol](test/compromised/Compromised.t.sol)
+
+**Exploit**: The challenge provides hex-encoded strings that decode to private keys of two oracle sources (hex → base64 → private keys). We use these to manipulate the price oracle: set NFT price to 0, buy cheap, raise price to 999 ETH, sell high, restore price, and drain the exchange.
+
+**Key Takeaway**: Oracle private keys must be kept secure. Use multi-signature schemes or decentralized oracle networks to prevent single points of failure.
+
+---
+
+### ✅ Challenge #8: Puppet
+
+**Vulnerability**: Oracle manipulation via DEX price manipulation
+
+**Solution**: [test/puppet/Puppet.t.sol](test/puppet/Puppet.t.sol)
+
+**Exploit**: The lending pool uses Uniswap spot price as an oracle without safeguards. We dump all 1000 DVT tokens into the small Uniswap pool (10 ETH / 10 DVT), crashing the token price. This drastically reduces the collateral required to borrow. We then borrow all 100,000 DVT from the lending pool with our 25 ETH.
+
+**Key Takeaway**: Never use spot prices from DEXs as oracles without protection. Use time-weighted average prices (TWAP), multiple oracle sources, or sufficient liquidity depth requirements.
+
+---
+
 ## Running Solutions
 
 Run all solutions:
@@ -118,6 +142,8 @@ forge test --match-test test_truster -vvv
 forge test --match-test test_sideEntrance -vvv
 forge test --match-test test_theRewarder -vvv
 forge test --match-test test_selfie -vvv
+forge test --match-test test_compromised -vvv
+forge test --match-test test_puppet -vvv
 ```
 
 ## Progress
@@ -128,8 +154,8 @@ forge test --match-test test_selfie -vvv
 - [x] #4 - Side entrance
 - [x] #5 - The rewarder
 - [x] #6 - Selfie
-- [ ] #7 - Compromised
-- [ ] #8 - Puppet
+- [x] #7 - Compromised
+- [x] #8 - Puppet
 - [ ] #9 - Puppet V2
 - [ ] #10 - Free rider
 - [ ] #11 - Backdoor

