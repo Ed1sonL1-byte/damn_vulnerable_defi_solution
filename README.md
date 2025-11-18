@@ -55,6 +55,54 @@ By crafting a `withdraw()` call with the `deployer` address appended to the call
 
 ---
 
+### ✅ Challenge #3: Truster
+
+**Vulnerability**: Arbitrary external call in flash loan
+
+**Solution**: [test/truster/Truster.t.sol](test/truster/Truster.t.sol)
+
+**Exploit**: The `TrusterLenderPool.flashLoan` function allows calling any target address with arbitrary data. We exploit this by making the pool approve our attacker contract to spend all its tokens, then use `transferFrom` to drain the pool.
+
+**Key Takeaway**: Never allow arbitrary external calls in privileged contexts. Whitelist allowed targets and validate call data.
+
+---
+
+### ✅ Challenge #4: Side Entrance
+
+**Vulnerability**: Flash loan accounting bypass
+
+**Solution**: [test/side-entrance/SideEntrance.t.sol](test/side-entrance/SideEntrance.t.sol)
+
+**Exploit**: The pool's `flashLoan` function only checks if total ETH balance is restored, not how it was restored. We borrow ETH via flash loan, deposit it back through `deposit()` (which credits our internal balance), satisfy the balance check, then withdraw all ETH using our credited balance.
+
+**Key Takeaway**: Flash loan repayment checks must distinguish between direct transfers and other ways funds can enter the contract. Internal accounting and actual balance must be properly separated.
+
+---
+
+### ✅ Challenge #5: The Rewarder
+
+**Vulnerability**: Transfer-before-validation in batch processing
+
+**Solution**: [test/the-rewarder/TheRewarder.t.sol](test/the-rewarder/TheRewarder.t.sol)
+
+**Exploit**: The `claimRewards` function transfers tokens inside the loop (line 116) but only validates and updates the bitmap when token changes or at the end. By submitting multiple claims for the same token consecutively, each claim triggers a transfer but `_setClaimed` is called only once with the accumulated amount.
+
+**Key Takeaway**: In batch processing, perform all validations and state updates before any external calls or transfers.
+
+---
+
+### ✅ Challenge #6: Selfie
+
+**Vulnerability**: Flash loan governance attack
+
+**Solution**: [test/selfie/Selfie.t.sol](test/selfie/Selfie.t.sol)
+
+**Exploit**: The governance requires >50% voting power to queue actions. We use a flash loan to temporarily hold enough tokens, delegate voting power to ourselves, queue a governance action to call `emergencyExit(recovery)`, repay the loan, wait 2 days, then execute the action to drain the pool.
+
+**Key Takeaway**: Governance systems should implement safeguards against flash loan attacks, such as snapshot-based voting, time-weighted voting power, or minimum holding periods.
+
+---
+
 ## Running Solutions
 
 Run all solutions:
@@ -66,16 +114,20 @@ Run a specific challenge:
 ```bash
 forge test --match-test test_unstoppable -vvv
 forge test --match-test test_naiveReceiver -vvv
+forge test --match-test test_truster -vvv
+forge test --match-test test_sideEntrance -vvv
+forge test --match-test test_theRewarder -vvv
+forge test --match-test test_selfie -vvv
 ```
 
 ## Progress
 
 - [x] #1 - Unstoppable
 - [x] #2 - Naive receiver
-- [ ] #3 - Truster
-- [ ] #4 - Side entrance
-- [ ] #5 - The rewarder
-- [ ] #6 - Selfie
+- [x] #3 - Truster
+- [x] #4 - Side entrance
+- [x] #5 - The rewarder
+- [x] #6 - Selfie
 - [ ] #7 - Compromised
 - [ ] #8 - Puppet
 - [ ] #9 - Puppet V2
